@@ -72,15 +72,15 @@ func init() {
 
 	_ = DefaultCellFactory.Register(
 		[]string{"", " "},
-		SimpleStringCellFactory{func(pos Position) Cell { return EarthCell{pos} }},
+		SimpleStringCellFactory{func(pos Position) Cell { return &CellType{Class: "earth"} }},
 	)
 	_ = DefaultCellFactory.Register(
 		[]string{"wall", "w"},
-		SimpleStringCellFactory{func(pos Position) Cell { return WallCell{pos} }},
+		SimpleStringCellFactory{func(pos Position) Cell { return &CellType{Class: "wall"} }},
 	)
 	_ = DefaultCellFactory.Register(
 		[]string{"exit", "e"},
-		SimpleStringCellFactory{func(pos Position) Cell { return ExitCell{pos} }},
+		SimpleStringCellFactory{func(pos Position) Cell { return &CellType{Class: "exit"} }},
 	)
 	_ = DefaultCellFactory.Register(
 		RiverStringFactoryKeys,

@@ -30,7 +30,7 @@ func (cm *CellMap) Insert(c Cell, p Position) {
 	}
 
 	for x := len(cm.v[p.Y]); x <= p.X; x++ {
-		cm.v[p.Y] = append(cm.v[p.Y], WallCell{pos: Position{X: x, Y: p.Y}})
+		cm.v[p.Y] = append(cm.v[p.Y], &CellType{Class: "wall"})
 	}
 
 	cm.v[p.Y][p.X] = c
@@ -38,10 +38,10 @@ func (cm *CellMap) Insert(c Cell, p Position) {
 
 func (cm *CellMap) Get(p Position) Cell {
 	if p.Y >= len(cm.v) {
-		return WallCell{pos: p}
+		return &CellType{Class: "wall"}
 	}
 	if p.X >= len(cm.v[p.Y]) {
-		return WallCell{pos: p}
+		return &CellType{Class: "wall"}
 	}
 
 	return cm.v[p.Y][p.X]
@@ -83,7 +83,7 @@ func FPrintCellMap(w io.Writer, cellMap CellMap) {
 				log.Print(err.Error())
 			}
 		} else {
-			_, err := w.Write([]byte(c.Type().Class))
+			_, err := w.Write([]byte(c.Class))
 			if err != nil {
 				log.Print(err.Error())
 			}

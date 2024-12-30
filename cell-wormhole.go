@@ -9,7 +9,6 @@ import (
 const WormholeCellSystemNameAttr = "wormhole_name"
 
 type WormholeCell struct {
-	BaseCell
 	NextPos Position
 	Name    string
 	Idx     int
@@ -47,13 +46,13 @@ func (tscf *WormholeStringCellFactory) Make(key string, pos Position) (Cell, err
 	}
 	tscf.whormholeSystems[whormholeSystemName][whormholeIdx] = pos
 
-	return WormholeCell{BaseCell: BaseCell{pos: pos}, Name: whormholeSystemName, Idx: whormholeIdx}, nil
+	return &CellType{Class: "wormhole", Custom: &WormholeCell{Name: whormholeSystemName, Idx: whormholeIdx}}, nil
 }
 
 func (tscf *WormholeStringCellFactory) Finish(cm CellMap) {
-	for p, c := range cm.All() {
-		if c.Type().Class == "wormhole" && c.Type().Attributes[BaseCellBuildHookAttr] == "" {
-			tc, ok := c.(WormholeCell)
+	for _, c := range cm.All() {
+		if c.Class == "wormhole" {
+			tc, ok := c.Custom.(*WormholeCell)
 			if !ok {
 				panic("type conversion failes")
 			}
@@ -63,7 +62,7 @@ func (tscf *WormholeStringCellFactory) Finish(cm CellMap) {
 			}
 
 			tc.NextPos = nextPos
-			cm.Insert(tc, p)
+			// cm.Insert(c, p)
 		}
 	}
 }

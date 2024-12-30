@@ -113,73 +113,33 @@ func (h *rowReader) next(c rune) (bool, error) {
 	return false, nil
 }
 
-type exitReader struct {
+type namePosReader struct {
 	wb     *WorldBuilder
 	prefix strings.Builder
 }
 
-func (h *exitReader) next(c rune) (bool, error) {
-	if c == '\n' {
-		lineValue := h.prefix.String()
-		if value, ok := strings.CutPrefix(lineValue, "exit:"); ok {
-			value := strings.TrimSpace(value)
-
-			vals := strings.Split(value, ":")
-			if len(vals) != 2 {
-				return false, fmt.Errorf("exit: has incorrect position")
-			}
-			x, err := strconv.Atoi(vals[0])
-			if err != nil {
-				return false, fmt.Errorf("exit: has incorrect position")
-			}
-			y, err := strconv.Atoi(vals[1])
-			if err != nil {
-				return false, fmt.Errorf("exit: has incorrect position")
-			}
-
-			h.wb.Cf.MakeCell("exit", x, y)
-
-			return true, nil
-		}
-
-		h.prefix.Reset()
-		return false, nil
-	}
-
-	h.prefix.WriteRune(c)
-	return false, nil
-}
-
-type playerReader struct {
-	wb     *WorldBuilder
-	prefix strings.Builder
-}
-
-func (h *playerReader) next(c rune) (bool, error) {
+func (h *namePosReader) next(c rune) (bool, error) {
 	if c == '\n' {
 		lineValue := strings.TrimSpace(h.prefix.String())
 		if lineValue == "" {
 			return false, nil
 		}
 
-		if player, position, ok := strings.Cut(lineValue, ":"); ok {
+		if property, position, ok := strings.Cut(lineValue, ":"); ok {
 			vals := strings.Split(position, ":")
 			if len(vals) != 2 {
-				return false, fmt.Errorf("player %v has incorrection position: `%v`", player, position)
+				return false, fmt.Errorf("property %v has incorrection position: `%v`", property, position)
 			}
 			x, err := strconv.Atoi(strings.TrimSpace(vals[0]))
 			if err != nil {
-				return false, fmt.Errorf("player %v has incorrection position: `%v`", player, position)
+				return false, fmt.Errorf("property %v has incorrection position: `%v`", property, position)
 			}
 			y, err := strconv.Atoi(strings.TrimSpace(vals[1]))
 			if err != nil {
-				return false, fmt.Errorf("player %v has incorrection position: `%v`", player, position)
+				return false, fmt.Errorf("property %v has incorrection position: `%v`", property, position)
 			}
 
-			h.wb.players = append(h.wb.players, &lab.Player{
-				Name: player,
-				Pos:  lab.NewPosition(x, y),
-			})
+			h.wb.properties[property] = lab.NewPosition(x, y)
 		}
 
 		h.prefix.Reset()
@@ -194,19 +154,19 @@ type WorldBuilder struct {
 	maxX int
 	Cf   lab.CellWorldBuilder
 
-	players []*lab.Player
+	properties map[string]lab.Position
 }
 
 func (wb *WorldBuilder) Build(wmap string) (*lab.World, []*lab.Player, error) {
 	cf := &(wb.Cf)
+	wb.properties = map[string]lab.Position{}
 
 	mdTableProccessorIdx := 0
 	mdTableProccessor := []mdTableProccessor{
 		&headerReader{wb: wb},
 		&afterHeaderLineReader{},
 		&rowReader{wb: wb, y: 1},
-		&exitReader{wb: wb},
-		&playerReader{wb: wb},
+		&namePosReader{wb: wb},
 	}
 
 	for _, c := range wmap {
@@ -228,5 +188,18 @@ func (wb *WorldBuilder) Build(wmap string) (*lab.World, []*lab.Player, error) {
 		return nil, nil, err
 	}
 
-	return &lab.World{Cells: cellMap}, wb.players, nil
+	var players []*lab.Player
+	for propName, pos := range wb.properties {
+		if propName == "exit" {
+			//TODO: use factory here
+			cellMap.Insert(&lab.CellType{Class: "exit"}, pos)
+		} else if propName == "treasure" {
+			// c := cellMap.Get(pos)
+			// c.
+		} else {
+			players = append(players, &lab.Player{Name: propName, Pos: pos})
+		}
+	}
+
+	return &lab.World{Cells: cellMap}, players, nil
 }
