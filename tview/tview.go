@@ -29,19 +29,19 @@ func (m *WorldTable) GetCell(row, column int) *tview.TableCell {
 
 	worldCell := m.w.Cells.Get(lab.Position{X: column, Y: row})
 
-	worldCellT := worldCell.Type()
-	switch worldCellT.Class {
+	switch worldCell.Class {
 	case "wall":
 		ret = tview.NewTableCell(" ")
 		ret = ret.SetStyle(ret.Style.Foreground(tcell.ColorGreen))
 		ret.SetBackgroundColor(tcell.ColorWhite)
 	case "river":
-		ch := worldCellT.Attributes[lab.RiverCellDirectionAttr]
-		ret = tview.NewTableCell(ch)
+		rcell := worldCell.Custom.(*lab.RiverCell)
+
+		ret = tview.NewTableCell(rcell.Dir.Utf8Arrow())
 		ret.SetBackgroundColor(tcell.ColorCornflowerBlue)
 
-		rcell := worldCell.(lab.RiverCell)
-		ret.SetText(rcell.Dir.Utf8Arrow())
+		// TODO: remove
+		// ret.SetText(rcell.Dir.Utf8Arrow())
 	case "wormhole":
 		ret = tview.NewTableCell(" ")
 		ret.SetBackgroundColor(tcell.ColorDarkGreen)
