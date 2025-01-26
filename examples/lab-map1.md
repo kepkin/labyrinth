@@ -11,5 +11,6 @@
 
 
 exit: 9:8
-alex: 2:2
+treasure: 8:8
+alex: 8:7
 tanya: 2:3

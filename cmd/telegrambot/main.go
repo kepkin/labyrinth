@@ -149,11 +149,15 @@ func makeWorld() *lab.World {
 		return _world
 	}
 
-	worldBytes, err := os.ReadFile("lab-map1.md")
+	worldBytes, err := os.ReadFile("./examples/lab-map1.md")
 	if err != nil {
 		panic(err.Error())
 	}
-	bb := md.WorldBuilder{}
+	bb := md.WorldBuilder{
+		Cf: lab.CellWorldBuilder{
+			CellFac: lab.DefaultCellFactory,
+		},
+	}
 	_world, _, err := bb.Build(string(worldBytes))
 	if err != nil {
 		panic(err.Error())
@@ -194,6 +198,11 @@ func main() {
 }
 
 func handler(ctx context.Context, b *bot.Bot, update *models.Update) {
+
+	if update == nil || update.Message == nil || update.Message.From == nil {
+		log.Printf("nil from %#v", update)
+		return
+	}
 
 	st := userStateRepository.GetByChatUserID(update.Message.From.ID)
 	st.Handle(ctx, b, update)
@@ -244,7 +253,11 @@ func handlerInfo(ctx context.Context, b *bot.Bot, update *models.Update) {
 			ChatID: update.Message.Chat.ID,
 			Text:   "No game",
 		})
-		log.Print(err.Error())
+
+		if err != nil {
+			log.Print(err.Error())
+		}
+
 		return
 	}
 
@@ -260,7 +273,9 @@ func handlerInfo(ctx context.Context, b *bot.Bot, update *models.Update) {
 		Text:   msg.String(),
 	})
 
-	log.Print(err.Error())
+	if err != nil {
+		log.Print(err.Error())
+	}
 }
 
 var words = []string{

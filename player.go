@@ -12,7 +12,7 @@ type Player struct {
 	Name string
 	Pos  Position
 
-	Hand   HandItem
+	Hand   *Item
 	Lives  int
 	Arrows int
 

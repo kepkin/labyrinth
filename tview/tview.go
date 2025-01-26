@@ -39,9 +39,6 @@ func (m *WorldTable) GetCell(row, column int) *tview.TableCell {
 
 		ret = tview.NewTableCell(rcell.Dir.Utf8Arrow())
 		ret.SetBackgroundColor(tcell.ColorCornflowerBlue)
-
-		// TODO: remove
-		// ret.SetText(rcell.Dir.Utf8Arrow())
 	case "wormhole":
 		ret = tview.NewTableCell(" ")
 		ret.SetBackgroundColor(tcell.ColorDarkGreen)

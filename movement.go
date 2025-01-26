@@ -3,13 +3,23 @@ package labyrinth
 type SimpleMoveCommand struct{}
 
 func (c SimpleMoveCommand) Do(w *World, p *Player, direction MoveDirection) []Event {
+	evs := []Event{}
+
 	nextCoo := p.Pos.Next(direction)
 	p.Pos = nextCoo
 	nextCell := w.Cells.Get(nextCoo)
 
 	e := NewEventf(nextCell.Class)
+	evs = append(evs, e)
 	w.Emmit(e)
-	return []Event{e}
+
+	for _, v := range nextCell.Items {
+		e := NewEventf("found `%v`", v.Name)
+		evs = append(evs, e)
+		w.Emmit(e)
+	}
+
+	return evs
 }
 
 type WallMoveCommand struct{}
@@ -24,11 +34,15 @@ type ExitMoveCommand struct{}
 
 func (c ExitMoveCommand) Do(w *World, p *Player, direction MoveDirection) []Event {
 	se := SimpleMoveCommand{}.Do(w, p, direction)
-	if p.Hand == Treasure {
+	if p.Hand == nil {
+		return se
+	}
+
+	if p.Hand.ID == Treasure {
 		e := NewEventf("your tresure is genuine")
 		w.Emmit(e)
 		return append(se, e)
-	} else if p.Hand == FakeTreasure {
+	} else if p.Hand.ID == FakeTreasure {
 		e := NewEventf("your tresure is Fake")
 		w.Emmit(e)
 		return append(se, e)
@@ -125,7 +139,7 @@ func (rm RiverMoveCommand) interact(w *World, p *Player, recCtxRiverCell *RiverC
 		}
 
 		if recCtxCounter == 0 {
-			if p.Hand != Nothing {
+			if p.Hand != nil {
 				e := NewEventf("You've fallen into a River - and dropped a Treasure")
 				recEvents = append(recEvents, e)
 				w.Emmit(e)

@@ -12,6 +12,7 @@ type Command interface {
 type Cell = *CellType
 
 type Item struct {
+	ID   HandItem
 	Name string
 }
 type CellType struct {

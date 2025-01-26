@@ -151,15 +151,19 @@ func (h *namePosReader) next(c rune) (bool, error) {
 }
 
 type WorldBuilder struct {
-	maxX int
-	Cf   lab.CellWorldBuilder
+	Cf      lab.CellWorldBuilder
+	Factory lab.StringCellFactory
 
+	maxX       int
 	properties map[string]lab.Position
 }
 
 func (wb *WorldBuilder) Build(wmap string) (*lab.World, []*lab.Player, error) {
 	cf := &(wb.Cf)
 	wb.properties = map[string]lab.Position{}
+	if wb.Factory == nil {
+		wb.Factory = lab.DefaultCellFactory
+	}
 
 	mdTableProccessorIdx := 0
 	mdTableProccessor := []mdTableProccessor{
@@ -191,11 +195,17 @@ func (wb *WorldBuilder) Build(wmap string) (*lab.World, []*lab.Player, error) {
 	var players []*lab.Player
 	for propName, pos := range wb.properties {
 		if propName == "exit" {
-			//TODO: use factory here
-			cellMap.Insert(&lab.CellType{Class: "exit"}, pos)
+			exitCell, err := wb.Factory.Make("exit", pos)
+			if err != nil {
+				return nil, nil, err
+			}
+			cellMap.Insert(exitCell, pos)
 		} else if propName == "treasure" {
-			// c := cellMap.Get(pos)
-			// c.
+			c := cellMap.Get(pos)
+			c.PutItem(&lab.Item{ID: lab.Treasure, Name: "tresure"})
+		} else if propName == "fake_treasure" {
+			c := cellMap.Get(pos)
+			c.PutItem(&lab.Item{ID: lab.FakeTreasure, Name: "tresure"})
 		} else {
 			players = append(players, &lab.Player{Name: propName, Pos: pos})
 		}
