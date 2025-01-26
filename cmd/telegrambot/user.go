@@ -64,7 +64,9 @@ func (s *UserDefaultState) Handle(ctx context.Context, b *bot.Bot, update *model
 			Text:   "there is no such session. You can start a new one with /new",
 		})
 
-		log.Print(err.Error())
+		if err != nil {
+			log.Print(err.Error())
+		}
 	}
 
 	userStateRepository.SetUserState(update.Message.From.ID, &BaseRouteState{
@@ -78,7 +80,9 @@ func (s *UserDefaultState) Handle(ctx context.Context, b *bot.Bot, update *model
 		Text:   fmt.Sprintf("Game name: `%v`. Choose your position. Write two numbers (Example: 1:3)", sessionID),
 	})
 
-	log.Print(err.Error())
+	if err != nil {
+		log.Print(err.Error())
+	}
 }
 
 type UserAskedForJoinState struct {
@@ -91,7 +95,9 @@ func (s *UserAskedForJoinState) handleIncorrectFormat(ctx context.Context, b *bo
 		Text:   "Inccorecct format. Please enter your desired position in the format X:Y (Example: 1:3)",
 	})
 
-	log.Print(err.Error())
+	if err != nil {
+		log.Print(err.Error())
+	}
 }
 
 func (s *UserAskedForJoinState) Handle(ctx context.Context, b *bot.Bot, update *models.Update) {
@@ -127,7 +133,11 @@ func (s *UserAskedForJoinState) Handle(ctx context.Context, b *bot.Bot, update *
 			ChatID: x.ID,
 			Text:   fmt.Sprintf("%v joined", user.Username),
 		})
-		log.Print(err.Error())
+
+		if err != nil {
+			log.Print(err.Error())
+		}
+
 	}
 }
 
@@ -163,18 +173,21 @@ func (s *WaitForGameStartState) Handle(ctx context.Context, b *bot.Bot, update *
 					Text:   fmt.Sprintf("Game started. %v move", pl.Name),
 				})
 
-				log.Print(err.Error())
+				if err != nil {
+					log.Print(err.Error())
+				}
 			}
 		}
 
 		_, err = b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID:      nextTgUser.ID,
 			Text:        "Your turn",
-			ReplyMarkup: getInGameMoveReplyKeyboard(),
+			ReplyMarkup: getInGameMoveReplyKeyboard(sess.GameSession.GetCurrentPlayerPossibleActions()),
 		})
 
-		log.Print(err.Error())
-
+		if err != nil {
+			log.Print(err.Error())
+		}
 	}
 }
 
@@ -198,7 +211,9 @@ func (s *BaseRouteState) Handle(ctx context.Context, b *bot.Bot, update *models.
 		Text:   "unknow command",
 	})
 
-	log.Print(err.Error())
+	if err != nil {
+		log.Print(err.Error())
+	}
 }
 
 type InfoState struct {
@@ -213,7 +228,9 @@ func (s *InfoState) Handle(ctx context.Context, b *bot.Bot, update *models.Updat
 			Text:   "No game",
 		})
 
-		log.Print(err.Error())
+		if err != nil {
+			log.Print(err.Error())
+		}
 		return
 	}
 
@@ -230,7 +247,9 @@ func (s *InfoState) Handle(ctx context.Context, b *bot.Bot, update *models.Updat
 		Text:   msg.String(),
 	})
 
-	log.Print(err.Error())
+	if err != nil {
+		log.Print(err.Error())
+	}
 }
 
 type StartState struct {
@@ -242,7 +261,9 @@ func (s *StartState) Handle(ctx context.Context, b *bot.Bot, update *models.Upda
 		Text:   "Welcome. Write any abrakadabra to make a new game and send this abrakdabra other players to join in",
 	})
 
-	log.Print(err.Error())
+	if err != nil {
+		log.Print(err.Error())
+	}
 }
 
 type InGameCommandState struct {
@@ -263,16 +284,18 @@ func (s *InGameCommandState) Handle(ctx context.Context, b *bot.Bot, update *mod
 			Text:   fmt.Sprintf("It's a %v's turn. Please wait.", pl.Name),
 		})
 
-		log.Print(err.Error())
+		if err != nil {
+			log.Print(err.Error())
+		}
 	}
 
 	move := update.Message.Text
 	evs := sess.GameSession.Do(move)
 	nextPl := sess.GameSession.GetCurrentPlayer()
 	msg := strings.Builder{}
-	msg.WriteString(fmt.Sprintf("Player %v made a move %v\n", pl.Name, move))
+	msg.WriteString(fmt.Sprintf("Player %v made a move %v", pl.Name, move))
 	for _, x := range evs {
-		msg.WriteString(" - ")
+		msg.WriteString("\n - ")
 		msg.WriteString(string(x))
 	}
 
@@ -282,7 +305,9 @@ func (s *InGameCommandState) Handle(ctx context.Context, b *bot.Bot, update *mod
 			ChatID: x.ID,
 			Text:   msg.String(),
 		})
-		log.Print(err.Error())
+		if err != nil {
+			log.Print(err.Error())
+		}
 
 		if x.Username == nextPl.Name {
 			nextTgUser = x
@@ -292,7 +317,9 @@ func (s *InGameCommandState) Handle(ctx context.Context, b *bot.Bot, update *mod
 				Text:   fmt.Sprintf("%v turn", nextPl.Name),
 			})
 
-			log.Print(err.Error())
+			if err != nil {
+				log.Print(err.Error())
+			}
 		}
 
 	}
@@ -300,13 +327,16 @@ func (s *InGameCommandState) Handle(ctx context.Context, b *bot.Bot, update *mod
 	_, err = b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:      nextTgUser.ID,
 		Text:        "Your turn",
-		ReplyMarkup: getInGameMoveReplyKeyboard(),
+		ReplyMarkup: getInGameMoveReplyKeyboard(sess.GameSession.GetCurrentPlayerPossibleActions()),
 	})
 
-	log.Print(err.Error())
+	if err != nil {
+		log.Print(err.Error())
+	}
+
 }
 
-func getInGameMoveReplyKeyboard() models.ReplyKeyboardMarkup {
+func getInGameMoveReplyKeyboard(actions []string) models.ReplyKeyboardMarkup {
 	markup := [][]models.KeyboardButton{
 		[]models.KeyboardButton{},
 	}
@@ -329,6 +359,27 @@ func getInGameMoveReplyKeyboard() models.ReplyKeyboardMarkup {
 	addButton("East")
 	addRow()
 	addButton("South")
+
+	for _, action := range actions {
+		if action == "north" {
+			continue
+		}
+
+		if action == "south" {
+			continue
+		}
+
+		if action == "east" {
+			continue
+		}
+
+		if action == "west" {
+			continue
+		}
+
+		addRow()
+		addButton(action)
+	}
 
 	res := models.ReplyKeyboardMarkup{
 		Keyboard: markup,

@@ -3,13 +3,23 @@ package labyrinth
 type SimpleMoveCommand struct{}
 
 func (c SimpleMoveCommand) Do(w *World, p *Player, direction MoveDirection) []Event {
+	evs := []Event{}
+
 	nextCoo := p.Pos.Next(direction)
 	p.Pos = nextCoo
 	nextCell := w.Cells.Get(nextCoo)
 
-	e := NewEventf(nextCell.Type().Name)
+	e := NewEventf(nextCell.Class)
+	evs = append(evs, e)
 	w.Emmit(e)
-	return []Event{e}
+
+	for _, v := range nextCell.Items {
+		e := NewEventf("found `%v`", v.Name)
+		evs = append(evs, e)
+		w.Emmit(e)
+	}
+
+	return evs
 }
 
 type WallMoveCommand struct{}
@@ -24,11 +34,15 @@ type ExitMoveCommand struct{}
 
 func (c ExitMoveCommand) Do(w *World, p *Player, direction MoveDirection) []Event {
 	se := SimpleMoveCommand{}.Do(w, p, direction)
-	if p.Hand == Treasure {
+	if p.Hand == nil {
+		return se
+	}
+
+	if p.Hand.ID == Treasure {
 		e := NewEventf("your tresure is genuine")
 		w.Emmit(e)
 		return append(se, e)
-	} else if p.Hand == FakeTreasure {
+	} else if p.Hand.ID == FakeTreasure {
 		e := NewEventf("your tresure is Fake")
 		w.Emmit(e)
 		return append(se, e)
@@ -78,13 +92,13 @@ func (c *MoveCommand) Do(w *World, p *Player) []Event {
 		return []Event{e}
 	}
 
-	routeFromMap := moveRouting[cell.Type().Class]
+	routeFromMap := moveRouting[cell.Class]
 	if routeFromMap == nil {
 		return SimpleMoveCommand{}.Do(w, p, c.Direction)
 
 	}
 
-	mvCmd := routeFromMap[nextCell.Type().Class]
+	mvCmd := routeFromMap[nextCell.Class]
 	if mvCmd == nil {
 		return SimpleMoveCommand{}.Do(w, p, c.Direction)
 	}
@@ -97,24 +111,23 @@ func (rm RiverMoveCommand) Do(w *World, p *Player, direction MoveDirection) []Ev
 	nextPos := p.Pos.Next(direction)
 	nextCell := w.Cells.Get(nextPos)
 
-	nextRiverCell, ok := nextCell.(RiverCell)
+	nextRiverCell, ok := nextCell.Custom.(*RiverCell)
 	if !ok {
 		panic("assertion failed")
 	}
 
-	return rm.interact(w, p, nextRiverCell)
+	return rm.interact(w, p, nextRiverCell, nextPos)
 }
 
-func (rm RiverMoveCommand) interact(w *World, p *Player, c RiverCell) []Event {
+func (rm RiverMoveCommand) interact(w *World, p *Player, recCtxRiverCell *RiverCell, recCtxPos Position) []Event {
 
 	var recCtxCounter int
-	var recCtxRiverCell RiverCell = c
 	var recEvents []Event
 
 	for {
-		p.Pos = recCtxRiverCell.Pos()
+		p.Pos = recCtxPos
 
-		if IsRiverMouth(recCtxRiverCell) {
+		if recCtxRiverCell.isMouth {
 			e := NewEventf("mouth of the river")
 			recEvents = append(recEvents, e)
 			w.Emmit(e)
@@ -126,7 +139,7 @@ func (rm RiverMoveCommand) interact(w *World, p *Player, c RiverCell) []Event {
 		}
 
 		if recCtxCounter == 0 {
-			if p.Hand != Nothing {
+			if p.Hand != nil {
 				e := NewEventf("You've fallen into a River - and dropped a Treasure")
 				recEvents = append(recEvents, e)
 				w.Emmit(e)
@@ -141,10 +154,11 @@ func (rm RiverMoveCommand) interact(w *World, p *Player, c RiverCell) []Event {
 			w.Emmit(e)
 		}
 
-		nextRiverCell := w.Cells.Get(recCtxRiverCell.Pos().Next(recCtxRiverCell.Dir))
-		nextRiver, ok := nextRiverCell.(RiverCell)
+		recCtxPos = recCtxPos.Next(recCtxRiverCell.Dir)
+		nextRiverCell := w.Cells.Get(recCtxPos)
+		nextRiver, ok := nextRiverCell.Custom.(*RiverCell)
 		if !ok {
-			e := NewEventf("ERROR: can't cast to river " + nextRiverCell.Type().Class)
+			e := NewEventf("ERROR: can't cast to river " + nextRiverCell.Class)
 			recEvents = append(recEvents, e)
 			w.Emmit(e)
 			break
@@ -164,10 +178,10 @@ func (rm WormholeMoveCommand) Do(w *World, p *Player, direction MoveDirection) [
 	nextPos := p.Pos.Next(direction)
 	nextCell := w.Cells.Get(nextPos)
 
-	wormholeCell, ok := nextCell.(WormholeCell)
+	wormholeCell, ok := nextCell.Custom.(*WormholeCell)
 	if !ok {
-		if _, ok := nextCell.(WallCell); ok {
-			wormholeCell, ok := w.Cells.Get(p.Pos).(WormholeCell)
+		if nextCell.Class == "wall" {
+			wormholeCell, ok := w.Cells.Get(p.Pos).Custom.(*WormholeCell)
 			if !ok {
 				panic("can not handle this")
 			}
@@ -175,6 +189,9 @@ func (rm WormholeMoveCommand) Do(w *World, p *Player, direction MoveDirection) [
 			e := NewEventf("you meet the wall, and teleported again")
 			w.Emmit(e)
 			return []Event{e}
+		} else {
+			//TODO: rethink this place
+			panic("unexpected state")
 		}
 	}
 

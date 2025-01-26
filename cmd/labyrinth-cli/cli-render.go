@@ -40,9 +40,19 @@ func Run(gameSession *lab.Session) {
 	posView := tview.NewTextView()
 	posView.SetDynamicColors(true).SetBackgroundColor(tcell.ColorDefault)
 
-	dropdown.SetSelectedFunc(func(text string, index int) {
+	var setOptions func(actions []string)
+
+	dropdownSelFunc := func(text string, index int) {
 		gameSession.Do(text)
-	})
+		actions := gameSession.GetCurrentPlayerPossibleActions()
+		setOptions(actions)
+	}
+
+	setOptions = func(actions []string) {
+		dropdown.SetOptions(actions, dropdownSelFunc)
+	}
+
+	dropdown.SetSelectedFunc(dropdownSelFunc)
 
 	vFlex := tview.NewFlex().SetDirection(tview.FlexRow)
 	vFlex.AddItem(tb, 10, 0, false)
@@ -54,18 +64,24 @@ func Run(gameSession *lab.Session) {
 	hFlex.AddItem(posView, 0, 1, false)
 	hFlex.AddItem(logView, 0, 1, false)
 
+	worldEventHandler := func(logValue lab.Event) {
+		app.QueueUpdateDraw(func() {
+			fmt.Fprint(logView, logValue+"\n")
+			logView.ScrollToEnd()
+
+			posView.Clear()
+			for _, p := range players {
+				fmt.Fprintf(posView, "player %v - %s\n", p.Name, p.Pos)
+			}
+
+		})
+	}
+
 	go func() {
+		worldEventHandler(lab.NewEventf("game started"))
 		for logValue := range worldChannel {
-			app.QueueUpdateDraw(func() {
-				fmt.Fprint(logView, logValue+"\n")
-				logView.ScrollToEnd()
+			worldEventHandler(logValue)
 
-				posView.Clear()
-				for _, p := range players {
-					fmt.Fprintf(posView, "player %v - %s\n", p.Name, p.Pos)
-				}
-
-			})
 		}
 	}()
 

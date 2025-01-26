@@ -1,21 +1,45 @@
 package labyrinth
 
-import "fmt"
+import (
+	"fmt"
+	"slices"
+)
 
 type Command interface {
 	Do(w *World, p *Player) []Event
 }
 
-type Cell interface {
-	Type() CellType
-	Pos() Position
-	// HasTreasure() bool
-}
+type Cell = *CellType
 
+type Item struct {
+	ID   HandItem
+	Name string
+}
 type CellType struct {
 	Class      string
 	Name       string
 	Attributes map[string]string
+	Items      []*Item
+
+	Custom any
+}
+
+func (c *CellType) TakeItem(name string) *Item {
+	var result *Item
+	c.Items = slices.DeleteFunc(c.Items, func(e *Item) bool {
+		if e.Name != name {
+			return false
+		}
+
+		result = e
+		return true
+	})
+
+	return result
+}
+
+func (c *CellType) PutItem(e *Item) {
+	c.Items = append(c.Items, e)
 }
 
 func GetXFromLetterMust(l rune) int {

@@ -1,5 +1,10 @@
 package labyrinth
 
+import (
+	"fmt"
+	"strings"
+)
+
 func NewCycledInt(max int64, initialValue int64) CycledInt {
 	return CycledInt{
 		max:   max,
@@ -48,7 +53,38 @@ func (s *Session) GetCurrentPlayer() *Player {
 	return s.Players[s.currentPlayer.Current()]
 }
 
+// Returns possible actions
+func (s *Session) GetCurrentPlayerPossibleActions() []string {
+	res := []string{"north", "south", "west", "east"}
+
+	p := s.Players[s.currentPlayer.Current()]
+
+	c := s.World.Cells.Get(p.Pos)
+
+	if p.Hand != nil {
+		res = append(res, fmt.Sprintf("drop  %v", p.Hand.Name))
+	} else {
+		for _, v := range c.Items {
+			res = append(res, fmt.Sprintf("pick up %v", v.Name))
+		}
+	}
+
+	return res
+}
+
 func (s *Session) Do(text string) []Event {
+	if strings.HasPrefix(text, "pick up") {
+		object := strings.TrimPrefix(text, "pick up ")
+
+		p := s.GetCurrentPlayer()
+		c := s.World.Cells.Get(p.Pos)
+		item := c.TakeItem(object)
+		p.Hand = item
+		s.World.Emmit(NewEventf("%s picks up %v", p.Name, object))
+
+		return nil
+	}
+
 	p := s.GetCurrentPlayer()
 
 	dir, err := MoveDirectionFromWord(text)
