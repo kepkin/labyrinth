@@ -8,10 +8,12 @@ import (
 	"os/signal"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/go-telegram/ui/keyboard/inline"
+	lru "github.com/hashicorp/golang-lru/v2/expirable"
 
 	lab "github.com/kepkin/labyrinth"
 	md "github.com/kepkin/labyrinth/markdown"
@@ -191,7 +193,7 @@ func main() {
 		userToActiveSessionMap: map[ChatUserID]string{},
 	}
 	userStateRepository = UserStateRepository{
-		store: map[ChatUserID]UserState{},
+		store: lru.NewLRU[ChatUserID, UserState](1000, nil, time.Hour),
 	}
 
 	b.Start(ctx)

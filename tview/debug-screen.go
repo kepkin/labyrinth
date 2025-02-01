@@ -34,10 +34,12 @@ func RunDebug(w *lab.World, players []*lab.Player) {
 	vFlex.AddItem(posView, 10, 0, false)
 	vFlex.AddItem(logView, 0, 1, false)
 
+	eventStringer := lab.DefaultEventStringer{}
+
 	go func() {
-		for logValue := range worldChannel {
+		for event := range worldChannel {
 			app.QueueUpdateDraw(func() {
-				fmt.Fprint(logView, logValue+"\n")
+				fmt.Fprint(logView, eventStringer.ToString(event)+"\n")
 				logView.ScrollToEnd()
 
 				posView.Clear()

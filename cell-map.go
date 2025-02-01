@@ -59,6 +59,27 @@ func (cm *CellMap) All() iter.Seq2[Position, Cell] {
 	}
 }
 
+// Returns cells in specific inner rectangle
+func (cm *CellMap) Rect(ltc Position, rbc Position) iter.Seq2[Position, Cell] {
+	return func(yield func(Position, Cell) bool) {
+		for y, row := range cm.v {
+			if y < ltc.Y || y > rbc.Y {
+				continue
+			}
+
+			for x, c := range row {
+				if x < ltc.X || x > rbc.X {
+					continue
+				}
+
+				if !yield(NewPosition(x, y), c) {
+					return
+				}
+			}
+		}
+	}
+}
+
 func FPrintCellMap(w io.Writer, cellMap CellMap) {
 	lastY := -1
 	for p, c := range cellMap.All() {
@@ -98,4 +119,39 @@ func FPrintCellMap(w io.Writer, cellMap CellMap) {
 
 func PrintCellMap(cellMap CellMap) {
 	FPrintCellMap(os.Stdout, cellMap)
+}
+
+type PlayerMap struct {
+	LeftCorner  Position
+	RightCorner Position
+	KnonwnCells map[Position]struct{}
+}
+
+func NewPlayerMap(pos Position) PlayerMap {
+	return PlayerMap{
+		LeftCorner:  pos,
+		RightCorner: pos,
+		KnonwnCells: map[Position]struct{}{pos: struct{}{}},
+	}
+}
+
+func (cf *PlayerMap) Learn(pos Position) {
+	if cf.KnonwnCells == nil {
+		cf.KnonwnCells = map[Position]struct{}{}
+	}
+	cf.KnonwnCells[pos] = struct{}{}
+
+	if pos.X < cf.LeftCorner.X {
+		cf.LeftCorner.X = pos.X
+	}
+	if pos.Y < cf.LeftCorner.Y {
+		cf.LeftCorner.Y = pos.Y
+	}
+
+	if pos.X > cf.RightCorner.X {
+		cf.RightCorner.X = pos.X
+	}
+	if pos.Y > cf.RightCorner.Y {
+		cf.RightCorner.Y = pos.Y
+	}
 }

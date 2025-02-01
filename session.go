@@ -35,14 +35,16 @@ func (c *CycledInt) SetMax(v int64) {
 }
 
 type Session struct {
-	World   *World
-	Players []*Player
+	World                *World
+	Players              []*Player
+	PlayerHasUncertainty []bool
 
 	currentPlayer CycledInt
 }
 
 func (s *Session) AddPlayer(name string, p Position) {
 	s.Players = append(s.Players, &Player{Name: name, Pos: p})
+	s.PlayerHasUncertainty = append(s.PlayerHasUncertainty, false)
 	s.currentPlayer.SetMax(int64(len(s.Players)))
 }
 
@@ -51,6 +53,18 @@ func (s *Session) GetCurrentPlayer() *Player {
 		s.currentPlayer.max = int64(len(s.Players))
 	}
 	return s.Players[s.currentPlayer.Current()]
+}
+
+func (s *Session) HookPreMove() {
+	res := s.Players[s.currentPlayer.Current()]
+	if s.PlayerHasUncertainty[s.currentPlayer.Current()] {
+		res.NewMap()
+		s.PlayerHasUncertainty[s.currentPlayer.Current()] = false
+	}
+}
+
+func (s *Session) SetCurrentPlayerUncertainty(uncertainty bool) {
+	s.PlayerHasUncertainty[s.currentPlayer.Current()] = uncertainty
 }
 
 // Returns possible actions
@@ -80,7 +94,7 @@ func (s *Session) Do(text string) []Event {
 		c := s.World.Cells.Get(p.Pos)
 		item := c.TakeItem(object)
 		p.Hand = item
-		s.World.Emmit(NewEventf("%s picks up %v", p.Name, object))
+		s.World.Emmit(NewEventf2(PickObjectEventType, p.Name, item.Name))
 
 		return nil
 	}
@@ -89,15 +103,27 @@ func (s *Session) Do(text string) []Event {
 
 	dir, err := MoveDirectionFromWord(text)
 	if err != nil {
-		return []Event{"impossible move"}
+		return []Event{NewEventf2(ErrorEventType, p.Name, "impossible move")}
 	}
-	s.World.Emmit(NewEventf("%s goes %s", p.Name, dir.String()))
+	s.World.Emmit(NewEventf2(MoveEventType, p.Name, dir.String()))
+	nextPlayerPos := s.GetCurrentPlayer().Pos.Next(dir)
 
 	mc := MoveCommand{
 		Direction: dir,
 	}
 
+	s.HookPreMove()
 	ev := mc.Do(s.World, p)
+	uncertainty := false
+	for _, event := range ev {
+		if event.Type == RiverDragEventType || event.Type == TeleportEventType {
+			uncertainty = true
+			break
+		}
+	}
+	s.SetCurrentPlayerUncertainty(uncertainty)
+
+	p.Map.Learn(nextPlayerPos)
 	s.currentPlayer.Next()
 
 	return ev

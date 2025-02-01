@@ -17,6 +17,8 @@ type Player struct {
 	Arrows int
 
 	Attrs map[string]string
+
+	Map PlayerMap
 }
 
 func (p *Player) SetAttr(attr string, value string) {
@@ -28,4 +30,9 @@ func (p *Player) SetAttr(attr string, value string) {
 
 func (p *Player) GetAttr(attr string) string {
 	return p.Attrs[attr]
+}
+
+func (p *Player) NewMap() {
+	p.Map = NewPlayerMap(p.Pos)
+	p.Map.Learn(p.Pos)
 }

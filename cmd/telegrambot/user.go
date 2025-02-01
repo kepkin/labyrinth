@@ -10,19 +10,20 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+	lru "github.com/hashicorp/golang-lru/v2/expirable"
 	lab "github.com/kepkin/labyrinth"
 	labtv "github.com/kepkin/labyrinth/tview"
 )
 
 type UserStateRepository struct {
-	store map[ChatUserID]UserState
+	store *lru.LRU[ChatUserID, UserState]
 
 	mu sync.RWMutex
 }
 
 func (usr *UserStateRepository) GetByChatUserID(id ChatUserID) UserState {
 	usr.mu.RLock()
-	st, ok := usr.store[id]
+	st, ok := usr.store.Get(id)
 	usr.mu.RUnlock()
 	if ok {
 		return st
@@ -30,19 +31,21 @@ func (usr *UserStateRepository) GetByChatUserID(id ChatUserID) UserState {
 
 	usr.mu.Lock()
 	defer usr.mu.Unlock()
-	usr.store[id] = &BaseRouteState{
+
+	val := &BaseRouteState{
 		Route: map[string]UserState{
 			"":       &UserDefaultState{},
 			"/start": &StartState{},
 		},
 	}
-	return usr.store[id]
+	usr.store.Add(id, val)
+	return val
 }
 
 func (usr *UserStateRepository) SetUserState(id ChatUserID, st UserState) {
 	usr.mu.Lock()
 	defer usr.mu.Unlock()
-	usr.store[id] = st
+	usr.store.Add(id, st)
 }
 
 type UserState interface {
@@ -289,24 +292,69 @@ func (s *InGameCommandState) Handle(ctx context.Context, b *bot.Bot, update *mod
 		}
 	}
 
+	eventStringer := lab.DefaultEventStringer{}
+
 	move := update.Message.Text
 	evs := sess.GameSession.Do(move)
 	nextPl := sess.GameSession.GetCurrentPlayer()
 	msg := strings.Builder{}
 	msg.WriteString(fmt.Sprintf("Player %v made a move %v", pl.Name, move))
-	for _, x := range evs {
-		msg.WriteString("\n - ")
-		msg.WriteString(string(x))
+
+	isWin := false
+	for _, event := range evs {
+		msg.WriteString("\n \\- ")
+		msg.WriteString(eventStringer.ToString(event))
+
+		if event.Type == lab.WinEventType {
+			isWin = true
+		}
 	}
+	msg.WriteString("\n\n```\n")
+
+	lastRow := 0
+	for p, c := range sess.GameSession.World.Cells.Rect(pl.Map.LeftCorner, pl.Map.RightCorner) {
+		if p.Y > lastRow {
+			msg.WriteString("\n")
+			lastRow = p.Y
+		}
+
+		_, ok := pl.Map.KnonwnCells[p]
+		if !ok {
+			msg.WriteString(" ")
+			continue
+		}
+
+		switch c.Class {
+		case lab.CellEarth:
+			msg.WriteString("e")
+
+		case lab.CellRiver:
+			msg.WriteString("r")
+
+		case lab.CellWall:
+			msg.WriteString("w")
+
+		case lab.CellWormHole:
+			msg.WriteString("o")
+		}
+
+	}
+	msg.WriteString("\n```")
 
 	nextTgUser := TgUser{}
 	for _, x := range sess.Users {
 		_, err := b.SendMessage(ctx, &bot.SendMessageParams{
-			ChatID: x.ID,
-			Text:   msg.String(),
+			ChatID:    x.ID,
+			Text:      msg.String(),
+			ParseMode: models.ParseModeMarkdown,
 		})
 		if err != nil {
 			log.Print(err.Error())
+		}
+
+		if isWin {
+			userStateRepository.SetUserState(x.ID, &UserDefaultState{})
+			continue
 		}
 
 		if x.Username == nextPl.Name {
@@ -321,7 +369,11 @@ func (s *InGameCommandState) Handle(ctx context.Context, b *bot.Bot, update *mod
 				log.Print(err.Error())
 			}
 		}
+	}
 
+	if isWin {
+		sessionRepository.StopSession(user.ID)
+		return
 	}
 
 	_, err = b.SendMessage(ctx, &bot.SendMessageParams{
@@ -333,7 +385,6 @@ func (s *InGameCommandState) Handle(ctx context.Context, b *bot.Bot, update *mod
 	if err != nil {
 		log.Print(err.Error())
 	}
-
 }
 
 func getInGameMoveReplyKeyboard(actions []string) models.ReplyKeyboardMarkup {
