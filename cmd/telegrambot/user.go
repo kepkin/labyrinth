@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"image/jpeg"
 	"log"
 	"strconv"
 	"strings"
@@ -12,6 +14,7 @@ import (
 	"github.com/go-telegram/bot/models"
 	lru "github.com/hashicorp/golang-lru/v2/expirable"
 	lab "github.com/kepkin/labyrinth"
+	"github.com/kepkin/labyrinth/image"
 	labtv "github.com/kepkin/labyrinth/tview"
 )
 
@@ -167,6 +170,7 @@ func (s *WaitForGameStartState) Handle(ctx context.Context, b *bot.Bot, update *
 		nextTgUser := TgUser{}
 		for _, x := range sess.Users {
 			userStateRepository.SetUserState(x.ID, &InGameCommandState{SessionID: s.SessionID})
+			pl.NewMap()
 
 			if pl.Name == x.Username {
 				nextTgUser = x
@@ -341,6 +345,18 @@ func (s *InGameCommandState) Handle(ctx context.Context, b *bot.Bot, update *mod
 	}
 	msg.WriteString("\n```")
 
+	ipm := image.NewPlayerMap(makeCellMapImage(), &(pl.Map))
+
+	f := bytes.NewBuffer(nil)
+	if err != nil {
+		log.Print(err)
+	}
+
+	err = jpeg.Encode(f, ipm, nil)
+	if err != nil {
+		log.Print(err)
+	}
+
 	nextTgUser := TgUser{}
 	for _, x := range sess.Users {
 		_, err := b.SendMessage(ctx, &bot.SendMessageParams{
@@ -348,6 +364,21 @@ func (s *InGameCommandState) Handle(ctx context.Context, b *bot.Bot, update *mod
 			Text:      msg.String(),
 			ParseMode: models.ParseModeMarkdown,
 		})
+		if err != nil {
+			log.Print(err.Error())
+		}
+
+		params := &bot.SendPhotoParams{
+			ChatID: x.ID,
+			Photo: &models.InputFileUpload{
+				Filename: "example.gif",
+				Data:     bytes.NewReader(f.Bytes()),
+			},
+			Caption: "map",
+		}
+
+		_, err = b.SendPhoto(ctx, params)
+
 		if err != nil {
 			log.Print(err.Error())
 		}

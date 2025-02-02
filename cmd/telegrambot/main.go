@@ -16,6 +16,7 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2/expirable"
 
 	lab "github.com/kepkin/labyrinth"
+	"github.com/kepkin/labyrinth/image"
 	md "github.com/kepkin/labyrinth/markdown"
 )
 
@@ -145,6 +146,22 @@ var sessionRepository SessionRepository
 var userStateRepository UserStateRepository
 
 var _world *lab.World
+var _cellMapImage *image.CellMap
+
+func makeCellMapImage() *image.CellMap {
+	if _cellMapImage != nil {
+		return _cellMapImage
+	}
+
+	var err error
+	w := makeWorld()
+	_cellMapImage, err = image.NewCellMapImage(&w.Cells)
+	if err != nil {
+		panic(err)
+	}
+
+	return _cellMapImage
+}
 
 func makeWorld() *lab.World {
 	if _world != nil {

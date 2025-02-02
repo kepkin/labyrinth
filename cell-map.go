@@ -135,6 +135,10 @@ func NewPlayerMap(pos Position) PlayerMap {
 	}
 }
 
+func (pm *PlayerMap) Rect() (int, int) {
+	return pm.RightCorner.X - pm.LeftCorner.X + 1, pm.RightCorner.Y - pm.LeftCorner.Y + 1
+}
+
 func (cf *PlayerMap) Learn(pos Position) {
 	if cf.KnonwnCells == nil {
 		cf.KnonwnCells = map[Position]struct{}{}
