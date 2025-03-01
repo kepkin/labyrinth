@@ -193,11 +193,90 @@ const (
 	West
 )
 
-type Event string
+type EventType int
 
-func NewEventf(e string, vals ...any) Event {
-	if len(vals) > 0 {
-		return Event(fmt.Sprintf(e, vals...))
+const (
+	MoveEventType = iota
+	WinEventType
+	ExitEventType
+	LearnCellEventType
+	RiverDragEventType
+	PickObjectEventType
+	DropObjectEventType
+	LooseObjectEventType
+	ErrorEventType
+	FoundObjectEventType
+	RevealObjectEventType
+	TeleportEventType
+	GameStartEventType
+)
+
+type Event struct {
+	Type    EventType
+	Subject string
+	Value   string
+}
+
+func NewEventf2(eventType EventType, subject string, value string) Event {
+	return Event{
+		Type:    eventType,
+		Subject: subject,
+		Value:   value,
 	}
-	return Event(e)
+}
+
+type EventStringer interface {
+	ToString(ev Event) string
+}
+
+type DefaultEventStringer struct {
+}
+
+func (DefaultEventStringer) ToString(ev Event) string {
+	switch ev.Type {
+	case MoveEventType:
+		return fmt.Sprintf("Player %v moved %v", ev.Subject, ev.Value)
+
+	case WinEventType:
+		return fmt.Sprintf("Player %v WINS", ev.Subject)
+
+	case ExitEventType:
+		return fmt.Sprintf("Player %v found exit", ev.Subject)
+
+	case LearnCellEventType:
+		return fmt.Sprintf("Player %v is on %v", ev.Subject, ev.Value)
+
+	case RiverDragEventType:
+		return fmt.Sprintf("Player %v dragged downstream", ev.Subject)
+
+	case PickObjectEventType:
+		return fmt.Sprintf("Player %v picked up %v", ev.Subject, ev.Value)
+
+	case DropObjectEventType:
+		return fmt.Sprintf("Player %v dropped %v", ev.Subject, ev.Value)
+
+	case LooseObjectEventType:
+		return fmt.Sprintf("Player %v loosed %v", ev.Subject, ev.Value)
+
+	case ErrorEventType:
+		return "Unexpected error"
+
+	case FoundObjectEventType:
+		return fmt.Sprintf("Player %v found %v", ev.Subject, ev.Value)
+
+	case RevealObjectEventType:
+		if ev.Value == "genuine" {
+			return "Player's treasure is genuine"
+		}
+		return "Player's treasure is fake"
+
+	case TeleportEventType:
+		return fmt.Sprintf("Player %v was teleported", ev.Subject)
+
+	case GameStartEventType:
+		return fmt.Sprintf("Game started. Player %v is the first to move", ev.Subject)
+
+	}
+
+	return "Unsupported event"
 }

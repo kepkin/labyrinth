@@ -49,7 +49,7 @@ func (tscf *WormholeStringCellFactory) Make(key string, pos Position) (Cell, err
 	return &CellType{Class: "wormhole", Custom: &WormholeCell{Name: whormholeSystemName, Idx: whormholeIdx}}, nil
 }
 
-func (tscf *WormholeStringCellFactory) Finish(cm CellMap) {
+func (tscf *WormholeStringCellFactory) Finish(cm CellMap) error {
 	for _, c := range cm.All() {
 		if c.Class == "wormhole" {
 			tc, ok := c.Custom.(*WormholeCell)
@@ -65,4 +65,6 @@ func (tscf *WormholeStringCellFactory) Finish(cm CellMap) {
 			// cm.Insert(c, p)
 		}
 	}
+
+	return nil
 }

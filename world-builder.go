@@ -26,7 +26,7 @@ func (cf *CellWorldBuilder) BuildCellMap() (CellMap, error) {
 type StringCellFactory interface {
 	//TODO: `pos` parameter is needed only for wormohle. Maybe we can refactor wormhole factory to use pos in Finish only?
 	Make(key string, pos Position) (Cell, error)
-	Finish(cm CellMap)
+	Finish(cm CellMap) error
 }
 
 type PrefixChainCellFactory struct {
@@ -60,10 +60,15 @@ func (cf *PrefixChainCellFactory) Make(cellCode string, pos Position) (Cell, err
 	return factory.Make(cellCode, pos)
 }
 
-func (cf *PrefixChainCellFactory) Finish(cm CellMap) {
+func (cf *PrefixChainCellFactory) Finish(cm CellMap) error {
 	for _, factory := range cf.facMap {
-		factory.Finish(cm)
+		err := factory.Finish(cm)
+		if err != nil {
+			return err
+		}
 	}
+
+	return nil
 }
 
 var DefaultCellFactory *PrefixChainCellFactory
@@ -73,15 +78,15 @@ func init() {
 
 	_ = DefaultCellFactory.Register(
 		[]string{"", " "},
-		SimpleStringCellFactory{func(pos Position) Cell { return &CellType{Class: "earth"} }},
+		SimpleStringCellFactory{func(pos Position) Cell { return &CellType{Class: CellEarth} }},
 	)
 	_ = DefaultCellFactory.Register(
-		[]string{"wall", "w"},
-		SimpleStringCellFactory{func(pos Position) Cell { return &CellType{Class: "wall"} }},
+		[]string{CellWall, "w"},
+		SimpleStringCellFactory{func(pos Position) Cell { return &CellType{Class: CellWall} }},
 	)
 	_ = DefaultCellFactory.Register(
-		[]string{"exit", "e"},
-		SimpleStringCellFactory{func(pos Position) Cell { return &CellType{Class: "exit"} }},
+		[]string{CellExit, "e"},
+		SimpleStringCellFactory{func(pos Position) Cell { return &CellType{Class: CellExit} }},
 	)
 	_ = DefaultCellFactory.Register(
 		RiverStringFactoryKeys,

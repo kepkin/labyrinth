@@ -127,7 +127,7 @@ func (rscf RiverStringCellFactory) Make(key string, pos Position) (Cell, error) 
 	return nil, fmt.Errorf("can not build river cell from %v", key)
 }
 
-func (rscf RiverStringCellFactory) Finish(cm CellMap) {
+func (rscf RiverStringCellFactory) Finish(cm CellMap) error {
 	for p, c := range cm.All() {
 		if c.Class == "river" {
 			cr := c.Custom.(*RiverCell)
@@ -137,4 +137,6 @@ func (rscf RiverStringCellFactory) Finish(cm CellMap) {
 			}
 		}
 	}
+
+	return nil
 }

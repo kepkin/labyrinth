@@ -7,13 +7,15 @@ import (
 	"os"
 	"os/signal"
 	"strings"
-	"sync"
+	"time"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/go-telegram/ui/keyboard/inline"
+	lru "github.com/hashicorp/golang-lru/v2/expirable"
 
 	lab "github.com/kepkin/labyrinth"
+	"github.com/kepkin/labyrinth/image"
 	md "github.com/kepkin/labyrinth/markdown"
 )
 
@@ -39,9 +41,11 @@ type SessionID struct {
 
 type SessionRepository interface {
 	GetSessionInPrepareMode(id string) (*MemSession, error)
+	FindSession(id string) (*MemSession, error)
 	JoinUserToSession(sessionID string, user TgUser, p lab.Position) (*MemSession, error)
 	StartSession(id string) error
 	GetActiveSessionForUser(userID int64) (*MemSession, error)
+	RemoveUserFromSession(userID int64) error
 	StopSession(userID int64)
 }
 
@@ -62,87 +66,26 @@ func (s *MemSession) Join(user TgUser, p lab.Position) error {
 	return nil
 }
 
-type MemSessionRepository struct {
-	store map[string]*MemSession
-
-	userToActiveSessionMap map[ChatUserID]string
-
-	m sync.RWMutex
-}
-
-func (s *MemSessionRepository) GetSessionInPrepareMode(id string) (*MemSession, error) {
-	s.m.RLock()
-	res := s.store[id]
-	s.m.RUnlock()
-	if res == nil {
-		s.m.Lock()
-		defer s.m.Unlock()
-		s.store[id] = &MemSession{}
-		return s.store[id], nil
-	}
-
-	return res, nil
-}
-
-func (s *MemSessionRepository) StartSession(id string) error {
-	s.m.Lock()
-	defer s.m.Unlock()
-
-	res := s.store[id]
-	if res == nil {
-		return fmt.Errorf("no such sesssion")
-	}
-
-	for _, x := range res.Users {
-		s.userToActiveSessionMap[x.ID] = id
-	}
-
-	return nil
-}
-
-func (s *MemSessionRepository) JoinUserToSession(sessionID string, user TgUser, p lab.Position) (*MemSession, error) {
-	sess, err := s.GetSessionInPrepareMode(sessionID)
-	if err != nil {
-		return nil, err
-	}
-	s.m.Lock()
-	defer s.m.Unlock()
-
-	s.userToActiveSessionMap[user.ID] = sessionID
-	err = sess.Join(user, p)
-
-	return sess, err
-}
-
-func (s *MemSessionRepository) GetActiveSessionForUser(userID int64) (*MemSession, error) {
-	s.m.RLock()
-	defer s.m.RUnlock()
-
-	if idx, ok := s.userToActiveSessionMap[userID]; ok {
-		return s.store[idx], nil
-	}
-
-	return nil, fmt.Errorf("user not in a game")
-}
-
-func (s *MemSessionRepository) StopSession(userID int64) {
-	s.m.Lock()
-	defer s.m.Unlock()
-
-	if idx, ok := s.userToActiveSessionMap[userID]; ok {
-		gameSession := s.store[idx]
-		for _, x := range gameSession.Users {
-			delete(s.userToActiveSessionMap, x.ID)
-		}
-
-		delete(s.store, idx)
-	}
-}
-
 var sessionRepository SessionRepository
 var userStateRepository UserStateRepository
 
 var _world *lab.World
+var _cellMapImage *image.CellMap
+
+func makeCellMapImage() *image.CellMap {
+	if _cellMapImage != nil {
+		return _cellMapImage
+	}
+
+	var err error
+	w := makeWorld()
+	_cellMapImage, err = image.NewCellMapImage(&w.Cells)
+	if err != nil {
+		panic(err)
+	}
+
+	return _cellMapImage
+}
 
 func makeWorld() *lab.World {
 	if _world != nil {
@@ -191,7 +134,7 @@ func main() {
 		userToActiveSessionMap: map[ChatUserID]string{},
 	}
 	userStateRepository = UserStateRepository{
-		store: map[ChatUserID]UserState{},
+		store: lru.NewLRU[ChatUserID, UserState](1000, nil, time.Hour),
 	}
 
 	b.Start(ctx)

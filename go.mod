@@ -8,6 +8,9 @@ require (
 	github.com/gdamore/tcell/v2 v2.7.1 // indirect
 	github.com/go-telegram/bot v1.11.1 // indirect
 	github.com/go-telegram/ui v0.4.1 // indirect
+	github.com/google/uuid v1.6.0 // indirect
+	github.com/goombaio/namegenerator v0.0.0-20181006234301-989e774b106e // indirect
+	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect

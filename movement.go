@@ -9,12 +9,12 @@ func (c SimpleMoveCommand) Do(w *World, p *Player, direction MoveDirection) []Ev
 	p.Pos = nextCoo
 	nextCell := w.Cells.Get(nextCoo)
 
-	e := NewEventf(nextCell.Class)
+	e := NewEventf2(LearnCellEventType, p.Name, nextCell.Class)
 	evs = append(evs, e)
 	w.Emmit(e)
 
 	for _, v := range nextCell.Items {
-		e := NewEventf("found `%v`", v.Name)
+		e := NewEventf2(FoundObjectEventType, p.Name, v.Name)
 		evs = append(evs, e)
 		w.Emmit(e)
 	}
@@ -25,7 +25,7 @@ func (c SimpleMoveCommand) Do(w *World, p *Player, direction MoveDirection) []Ev
 type WallMoveCommand struct{}
 
 func (c WallMoveCommand) Do(w *World, p *Player, direction MoveDirection) []Event {
-	e := NewEventf("it's a wall")
+	e := NewEventf2(LearnCellEventType, p.Name, CellWall)
 	w.Emmit(e)
 	return []Event{e}
 }
@@ -34,18 +34,22 @@ type ExitMoveCommand struct{}
 
 func (c ExitMoveCommand) Do(w *World, p *Player, direction MoveDirection) []Event {
 	se := SimpleMoveCommand{}.Do(w, p, direction)
+
 	if p.Hand == nil {
 		return se
 	}
 
 	if p.Hand.ID == Treasure {
-		e := NewEventf("your tresure is genuine")
+		e := NewEventf2(RevealObjectEventType, p.Name, "genuine")
+		e2 := NewEventf2(WinEventType, p.Name, "")
 		w.Emmit(e)
-		return append(se, e)
+		w.Emmit(e2)
+		se = append(se, e)
+		se = append(se, e2)
 	} else if p.Hand.ID == FakeTreasure {
-		e := NewEventf("your tresure is Fake")
+		e := NewEventf2(RevealObjectEventType, p.Name, "fake")
+		se = append(se, e)
 		w.Emmit(e)
-		return append(se, e)
 	}
 
 	return se
@@ -87,7 +91,7 @@ func (c *MoveCommand) Do(w *World, p *Player) []Event {
 	nextCell := w.Cells.Get(nextCoo)
 	if nextCell == nil {
 		//TODO error crash
-		e := Event("there is no cell there")
+		e := NewEventf2(ErrorEventType, "", "there is no cell there")
 		w.Emmit(e)
 		return []Event{e}
 	}
@@ -128,7 +132,7 @@ func (rm RiverMoveCommand) interact(w *World, p *Player, recCtxRiverCell *RiverC
 		p.Pos = recCtxPos
 
 		if recCtxRiverCell.isMouth {
-			e := NewEventf("mouth of the river")
+			e := NewEventf2(LearnCellEventType, p.Name, CellRiverMouth)
 			recEvents = append(recEvents, e)
 			w.Emmit(e)
 			break
@@ -139,17 +143,17 @@ func (rm RiverMoveCommand) interact(w *World, p *Player, recCtxRiverCell *RiverC
 		}
 
 		if recCtxCounter == 0 {
+			e := NewEventf2(RiverDragEventType, p.Name, CellRiver)
+			recEvents = append(recEvents, e)
+			w.Emmit(e)
+
 			if p.Hand != nil {
-				e := NewEventf("You've fallen into a River - and dropped a Treasure")
-				recEvents = append(recEvents, e)
-				w.Emmit(e)
-			} else {
-				e := NewEventf("You've fallen into a River and dragged downstream")
-				recEvents = append(recEvents, e)
-				w.Emmit(e)
+				e2 := NewEventf2(LooseObjectEventType, p.Name, p.Hand.Name)
+				recEvents = append(recEvents, e2)
+				w.Emmit(e2)
 			}
 		} else {
-			e := NewEventf("Dragged downstream")
+			e := NewEventf2(RiverDragEventType, p.Name, CellRiver)
 			recEvents = append(recEvents, e)
 			w.Emmit(e)
 		}
@@ -158,7 +162,7 @@ func (rm RiverMoveCommand) interact(w *World, p *Player, recCtxRiverCell *RiverC
 		nextRiverCell := w.Cells.Get(recCtxPos)
 		nextRiver, ok := nextRiverCell.Custom.(*RiverCell)
 		if !ok {
-			e := NewEventf("ERROR: can't cast to river " + nextRiverCell.Class)
+			e := NewEventf2(ErrorEventType, p.Name, "ERROR: can't cast to river "+nextRiverCell.Class)
 			recEvents = append(recEvents, e)
 			w.Emmit(e)
 			break
@@ -180,23 +184,26 @@ func (rm WormholeMoveCommand) Do(w *World, p *Player, direction MoveDirection) [
 
 	wormholeCell, ok := nextCell.Custom.(*WormholeCell)
 	if !ok {
-		if nextCell.Class == "wall" {
+		if nextCell.Class == CellWall {
 			wormholeCell, ok := w.Cells.Get(p.Pos).Custom.(*WormholeCell)
 			if !ok {
 				panic("can not handle this")
 			}
 			p.Pos = wormholeCell.NextPos
-			e := NewEventf("you meet the wall, and teleported again")
+			e := NewEventf2(LearnCellEventType, p.Name, CellWall)
+			e2 := NewEventf2(TeleportEventType, p.Name, "")
 			w.Emmit(e)
-			return []Event{e}
+			w.Emmit(e2)
+			return []Event{e, e2}
 		} else {
 			//TODO: rethink this place
-			panic("unexpected state")
+			e := NewEventf2(ErrorEventType, p.Name, "unexepcted state")
+			return []Event{e}
 		}
 	}
 
 	p.Pos = wormholeCell.NextPos
-	e := NewEventf("teleported")
+	e := NewEventf2(TeleportEventType, p.Name, "")
 	w.Emmit(e)
 	return []Event{e}
 }

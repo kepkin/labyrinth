@@ -1,9 +1,11 @@
 package main
 
 import (
+	"image/jpeg"
 	"os"
 
 	lab "github.com/kepkin/labyrinth"
+	"github.com/kepkin/labyrinth/image"
 	md "github.com/kepkin/labyrinth/markdown"
 )
 
@@ -24,6 +26,20 @@ func main() {
 	w, pls, err := bb.Build(string(b))
 	if err != nil {
 		panic(err.Error())
+	}
+
+	wimage, err := image.NewCellMapImage(&w.Cells)
+	if err != nil {
+		panic(err)
+	}
+
+	f, err := os.Create("rendered.jpg")
+	if err != nil {
+		panic(err)
+	}
+	err = jpeg.Encode(f, wimage, nil)
+	if err != nil {
+		panic(err)
 	}
 
 	gameSession := &lab.Session{

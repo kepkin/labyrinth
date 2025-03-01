@@ -64,9 +64,9 @@ func Run(gameSession *lab.Session) {
 	hFlex.AddItem(posView, 0, 1, false)
 	hFlex.AddItem(logView, 0, 1, false)
 
-	worldEventHandler := func(logValue lab.Event) {
+	worldEventHandler := func(event lab.Event) {
 		app.QueueUpdateDraw(func() {
-			fmt.Fprint(logView, logValue+"\n")
+			fmt.Fprint(logView, LabEventToString(event)+"\n")
 			logView.ScrollToEnd()
 
 			posView.Clear()
@@ -74,13 +74,16 @@ func Run(gameSession *lab.Session) {
 				fmt.Fprintf(posView, "player %v - %s\n", p.Name, p.Pos)
 			}
 
+			if event.Type == lab.WinEventType {
+				app.Stop()
+			}
 		})
 	}
 
 	go func() {
-		worldEventHandler(lab.NewEventf("game started"))
-		for logValue := range worldChannel {
-			worldEventHandler(logValue)
+		worldEventHandler(lab.NewEventf2(lab.GameStartEventType, "", ""))
+		for event := range worldChannel {
+			worldEventHandler(event)
 
 		}
 	}()
@@ -88,4 +91,53 @@ func Run(gameSession *lab.Session) {
 	if err := app.SetRoot(hFlex, true).Run(); err != nil {
 		panic(err)
 	}
+}
+
+func LabEventToString(ev lab.Event) string {
+	switch ev.Type {
+	case lab.MoveEventType:
+		return fmt.Sprintf("Player %v moved %v", ev.Subject, ev.Value)
+
+	case lab.WinEventType:
+		return fmt.Sprintf("Player %v WINS", ev.Subject)
+
+	case lab.ExitEventType:
+		return fmt.Sprintf("Player %v found exit", ev.Subject)
+
+	case lab.LearnCellEventType:
+		return fmt.Sprintf("Player %v is on %v", ev.Subject, ev.Value)
+
+	case lab.RiverDragEventType:
+		return fmt.Sprintf("Player %v dragged downstream", ev.Subject)
+
+	case lab.PickObjectEventType:
+		return fmt.Sprintf("Player %v picked up %v", ev.Subject, ev.Value)
+
+	case lab.DropObjectEventType:
+		return fmt.Sprintf("Player %v dropped %v", ev.Subject, ev.Value)
+
+	case lab.LooseObjectEventType:
+		return fmt.Sprintf("Player %v loosed %v", ev.Subject, ev.Value)
+
+	case lab.ErrorEventType:
+		return fmt.Sprint("Unexpected error")
+
+	case lab.FoundObjectEventType:
+		return fmt.Sprintf("Player %v found %v", ev.Subject, ev.Value)
+
+	case lab.RevealObjectEventType:
+		if ev.Value == "genuine" {
+			return fmt.Sprintf("Player's treasure is genuine")
+		}
+		return fmt.Sprintf("Player's treasure is fake")
+
+	case lab.TeleportEventType:
+		return fmt.Sprintf("Player %v was teleported", ev.Subject)
+
+	case lab.GameStartEventType:
+		return fmt.Sprintf("Game started. Player %v is the first to move", ev.Subject)
+
+	}
+
+	return "Unsupported event"
 }

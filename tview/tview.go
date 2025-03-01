@@ -9,18 +9,18 @@ import (
 	lab "github.com/kepkin/labyrinth"
 )
 
-func NewWorldTable(w *lab.World, players []*lab.Player) WorldTable {
+func NewWorldTable(w *lab.World, sess *lab.Session) WorldTable {
 	return WorldTable{
-		w:  w,
-		pl: players,
+		w:    w,
+		sess: sess,
 	}
 }
 
 type WorldTable struct {
 	tview.TableContentReadOnly
 
-	w  *lab.World
-	pl []*lab.Player
+	w    *lab.World
+	sess *lab.Session
 }
 
 func (m *WorldTable) GetCell(row, column int) *tview.TableCell {
@@ -44,7 +44,7 @@ func (m *WorldTable) GetCell(row, column int) *tview.TableCell {
 		ret.SetBackgroundColor(tcell.ColorDarkGreen)
 	}
 
-	for idx, p := range m.pl {
+	for idx, p := range m.sess.Players {
 		if p.Pos.X == column && p.Pos.Y == row {
 			ret.SetText(fmt.Sprintf("%v", idx))
 		}
