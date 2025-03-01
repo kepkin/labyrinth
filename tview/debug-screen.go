@@ -9,7 +9,7 @@ import (
 	lab "github.com/kepkin/labyrinth"
 )
 
-func RunDebug(w *lab.World, players []*lab.Player) {
+func RunDebug(w *lab.World, sess *lab.Session) {
 
 	worldChannel := make(chan lab.Event, 10)
 	w.SetChannel(worldChannel)
@@ -17,7 +17,7 @@ func RunDebug(w *lab.World, players []*lab.Player) {
 	tb := tview.NewTable()
 	tb.SetBackgroundColor(tcell.ColorDefault)
 
-	mtc := NewWorldTable(w, players)
+	mtc := NewWorldTable(w, sess)
 	tb.SetContent(&mtc)
 
 	app := tview.NewApplication()
@@ -43,7 +43,7 @@ func RunDebug(w *lab.World, players []*lab.Player) {
 				logView.ScrollToEnd()
 
 				posView.Clear()
-				for _, pl := range players {
+				for _, pl := range sess.Players {
 					fmt.Fprintf(posView, "player pos %s", pl.Pos)
 				}
 

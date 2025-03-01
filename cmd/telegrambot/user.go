@@ -9,9 +9,11 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+	"github.com/goombaio/namegenerator"
 	lru "github.com/hashicorp/golang-lru/v2/expirable"
 	lab "github.com/kepkin/labyrinth"
 	"github.com/kepkin/labyrinth/image"
@@ -28,7 +30,7 @@ func (usr *UserStateRepository) GetByChatUserID(id ChatUserID) UserState {
 	usr.mu.RLock()
 	st, ok := usr.store.Get(id)
 	usr.mu.RUnlock()
-	if ok {
+	if ok && st != nil {
 		return st
 	}
 
@@ -37,8 +39,9 @@ func (usr *UserStateRepository) GetByChatUserID(id ChatUserID) UserState {
 
 	val := &BaseRouteState{
 		Route: map[string]UserState{
-			"":       &UserDefaultState{},
-			"/start": &StartState{},
+			"":      &UserHelpState{},
+			"/new":  &NewState{},
+			"/join": &JoinState{},
 		},
 	}
 	usr.store.Add(id, val)
@@ -48,19 +51,82 @@ func (usr *UserStateRepository) GetByChatUserID(id ChatUserID) UserState {
 func (usr *UserStateRepository) SetUserState(id ChatUserID, st UserState) {
 	usr.mu.Lock()
 	defer usr.mu.Unlock()
-	usr.store.Add(id, st)
+
+	if st == nil {
+		usr.store.Remove(id)
+	} else {
+		usr.store.Add(id, st)
+	}
 }
 
 type UserState interface {
 	Handle(ctx context.Context, b *bot.Bot, update *models.Update)
 }
 
-type UserDefaultState struct {
+type UserHelpState struct {
 }
 
-func (s *UserDefaultState) Handle(ctx context.Context, b *bot.Bot, update *models.Update) {
-	sessionID := update.Message.Text
+func (s *UserHelpState) Handle(ctx context.Context, b *bot.Bot, update *models.Update) {
+	_, err := b.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID: update.Message.Chat.ID,
+		Text:   fmt.Sprintf("To start a new game write `/new`. If you want to join someone's game, ask for a joining code and type /join <code>"),
+	})
+
+	if err != nil {
+		log.Print(err.Error())
+	}
+}
+
+type NewState struct {
+}
+
+func (s *NewState) Handle(ctx context.Context, b *bot.Bot, update *models.Update) {
+	seed := time.Now().UTC().UnixNano()
+	nameGenerator := namegenerator.NewNameGenerator(seed)
+	sessionID := nameGenerator.Generate()
+
 	sess, err := sessionRepository.GetSessionInPrepareMode(sessionID)
+	if err != nil {
+		log.Default().Println(err)
+	}
+	if sess == nil {
+		_, err := b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID:    update.Message.Chat.ID,
+			Text:      "there is no such session. You can start a new one with /new",
+			ParseMode: models.ParseModeMarkdown,
+		})
+
+		if err != nil {
+			log.Print(err.Error())
+		}
+	}
+
+	userStateRepository.SetUserState(update.Message.From.ID, &BaseRouteState{
+		Route: map[string]UserState{
+			"":      &ChoosePositionState{SessionID: sessionID},
+			"info":  &InfoState{SessionID: sessionID},
+			"/exit": &ExitState{},
+		},
+	})
+
+	_, err = b.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID:    update.Message.Chat.ID,
+		Text:      fmt.Sprintf("You game code is `%v`\\. Ask you friends to join the game with this code\\. Now choose you position in labyrinth in format: x:y \\(like 3:5\\)\\.", sessionID),
+		ParseMode: models.ParseModeMarkdown,
+	})
+
+	if err != nil {
+		log.Print(err.Error())
+	}
+}
+
+type JoinState struct {
+}
+
+func (s *JoinState) Handle(ctx context.Context, b *bot.Bot, update *models.Update) {
+	ss, _ := strings.CutPrefix(update.Message.Text, "/join")
+	sessionID := strings.TrimSpace(ss)
+	sess, err := sessionRepository.FindSession(sessionID)
 	if err != nil {
 		log.Default().Println(err)
 	}
@@ -73,12 +139,14 @@ func (s *UserDefaultState) Handle(ctx context.Context, b *bot.Bot, update *model
 		if err != nil {
 			log.Print(err.Error())
 		}
+		return
 	}
 
 	userStateRepository.SetUserState(update.Message.From.ID, &BaseRouteState{
 		Route: map[string]UserState{
-			"":     &UserAskedForJoinState{SessionID: sessionID},
-			"info": &InfoState{SessionID: sessionID},
+			"":      &ChoosePositionState{SessionID: sessionID},
+			"info":  &InfoState{SessionID: sessionID},
+			"/exit": &ExitState{},
 		},
 	})
 	_, err = b.SendMessage(ctx, &bot.SendMessageParams{
@@ -91,11 +159,42 @@ func (s *UserDefaultState) Handle(ctx context.Context, b *bot.Bot, update *model
 	}
 }
 
-type UserAskedForJoinState struct {
+type ExitState struct {
+}
+
+func (s *ExitState) Handle(ctx context.Context, b *bot.Bot, update *models.Update) {
+	user := NewTgUserFromUpdate(update)
+	sess, err := sessionRepository.GetActiveSessionForUser(user.ID)
+	if err != nil {
+		log.Default().Println(err)
+	}
+	if sess != nil {
+		sess.GameSession.RemovePlayer(user.Username)
+		for _, x := range sess.Users {
+			_, err := b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID: x.ID,
+				Text:   fmt.Sprintf("%v left the game", user.Username),
+			})
+
+			if err != nil {
+				log.Print(err.Error())
+			}
+		}
+	}
+
+	err = sessionRepository.RemoveUserFromSession(user.ID)
+	if err != nil {
+		log.Default().Println(err)
+	}
+
+	userStateRepository.SetUserState(update.Message.From.ID, nil)
+}
+
+type ChoosePositionState struct {
 	SessionID string
 }
 
-func (s *UserAskedForJoinState) handleIncorrectFormat(ctx context.Context, b *bot.Bot, update *models.Update) {
+func (s *ChoosePositionState) handleIncorrectFormat(ctx context.Context, b *bot.Bot, update *models.Update) {
 	_, err := b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID: update.Message.Chat.ID,
 		Text:   "Inccorecct format. Please enter your desired position in the format X:Y (Example: 1:3)",
@@ -106,7 +205,7 @@ func (s *UserAskedForJoinState) handleIncorrectFormat(ctx context.Context, b *bo
 	}
 }
 
-func (s *UserAskedForJoinState) Handle(ctx context.Context, b *bot.Bot, update *models.Update) {
+func (s *ChoosePositionState) Handle(ctx context.Context, b *bot.Bot, update *models.Update) {
 	user := NewTgUserFromUpdate(update)
 	posValues := strings.Split(update.Message.Text, ":")
 	if len(posValues) != 2 {
@@ -163,13 +262,18 @@ func (s *WaitForGameStartState) Handle(ctx context.Context, b *bot.Bot, update *
 		sess.GameSession.World = w
 
 		go func() {
-			labtv.RunDebug(w, sess.GameSession.Players)
+			labtv.RunDebug(w, &sess.GameSession)
 		}()
 
 		pl := sess.GameSession.GetCurrentPlayer()
 		nextTgUser := TgUser{}
 		for _, x := range sess.Users {
-			userStateRepository.SetUserState(x.ID, &InGameCommandState{SessionID: s.SessionID})
+			userStateRepository.SetUserState(x.ID, &BaseRouteState{
+				Route: map[string]UserState{
+					"":      &InGameCommandState{SessionID: s.SessionID},
+					"/exit": &ExitState{},
+				},
+			})
 			pl.NewMap()
 
 			if pl.Name == x.Username {
@@ -203,7 +307,9 @@ type BaseRouteState struct {
 }
 
 func (s *BaseRouteState) Handle(ctx context.Context, b *bot.Bot, update *models.Update) {
-	if next, ok := s.Route[update.Message.Text]; ok {
+	prefix, _, _ := strings.Cut(update.Message.Text, " ")
+
+	if next, ok := s.Route[prefix]; ok {
 		next.Handle(ctx, b, update)
 		return
 	}
@@ -384,7 +490,7 @@ func (s *InGameCommandState) Handle(ctx context.Context, b *bot.Bot, update *mod
 		}
 
 		if isWin {
-			userStateRepository.SetUserState(x.ID, &UserDefaultState{})
+			userStateRepository.SetUserState(x.ID, &JoinState{})
 			continue
 		}
 

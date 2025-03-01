@@ -2,6 +2,7 @@ package labyrinth
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -53,6 +54,20 @@ func (s *Session) GetCurrentPlayer() *Player {
 		s.currentPlayer.max = int64(len(s.Players))
 	}
 	return s.Players[s.currentPlayer.Current()]
+}
+
+func (s *Session) RemovePlayer(name string) {
+	for i, v := range s.Players {
+		if v.Name != name {
+			continue
+		}
+
+		if s.currentPlayer.Current() >= int64(i) && i != 0 {
+			s.currentPlayer.value--
+		}
+		s.Players = slices.Delete(s.Players, i, i+1)
+		s.currentPlayer.SetMax(int64(len(s.Players)))
+	}
 }
 
 func (s *Session) HookPreMove() {
