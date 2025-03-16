@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: labyrinth-tgbot
+  namespace: default
+  labels:
+    app: labyrinth-tgbot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: labyrinth-tgbot
+  template:
+    metadata:
+      labels:
+        app: labyrinth-tgbot
+    spec:
+      containers:
+      - name: labyrinth-tgbot
+        image: labyrinth:latest
+        args:
+         - -map
+         - "/var/labyrinth/map/lab-map1.md"
+        # imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
+
+        envFrom:
+        - secretRef:
+            name: labyrinth-secret
+
+        volumeMounts:
+        - name: data
+          mountPath: "/var/labyrinth/map"
+          readOnly: true
+
+      volumes:
+      - name: data
+        configMap:
+          name: labyrinth-map

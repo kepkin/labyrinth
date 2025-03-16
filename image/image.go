@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"image/jpeg"
 	"os"
+	"path"
 
 	lab "github.com/kepkin/labyrinth"
 )
@@ -77,6 +78,7 @@ func (BlackImage) At(x, y int) color.Color {
 type CellMap struct {
 	cmap     *lab.CellMap
 	cellSize image.Point
+
 	textures map[string]image.Image
 }
 
@@ -117,7 +119,30 @@ func (cm *CellMap) At(x, y int) color.Color {
 	return texture.At(xx, yy)
 }
 
-func NewCellMapImage(cmap *lab.CellMap) (*CellMap, error) {
+type FSImageRepository struct {
+	BaseDir string
+}
+
+func (fsi *FSImageRepository) Get(cellType string) (image.Image, error) {
+	f, err := os.Open(path.Join(fsi.BaseDir, cellType+".jpg"))
+
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := jpeg.Decode(f)
+	if err != nil {
+		return nil, err
+	}
+
+	return res, nil
+}
+
+type ImageRepository interface {
+	Get(cellType string) (image.Image, error)
+}
+
+func NewCellMapImage(cmap *lab.CellMap, imgRepo ImageRepository) (*CellMap, error) {
 	textureSize := 0
 
 	res := &CellMap{
@@ -125,32 +150,25 @@ func NewCellMapImage(cmap *lab.CellMap) (*CellMap, error) {
 		textures: map[string]image.Image{},
 	}
 
-	fileMap := map[string]string{
-		lab.CellEarth:    "./image/Grass_01.jpg",
-		lab.CellRiver:    "./image/water.jpg",
-		lab.CellWall:     "./image/stone2.jpg",
-		lab.CellWormHole: "./image/Grass_portal.jpg",
+	imageKeys := []string{
+		lab.CellEarth,
+		lab.CellRiver,
+		lab.CellWall,
+		lab.CellWormHole,
 	}
 
-	for key, path := range fileMap {
+	for _, key := range imageKeys {
 		var err error
-		f, err := os.Open(path)
-
+		res.textures[key], err = imgRepo.Get(key)
 		if err != nil {
 			return nil, err
 		}
 
-		res.textures[key], err = jpeg.Decode(f)
 		if textureSize == 0 {
 			textureSize = res.textures[key].Bounds().Dx()
 		} else if textureSize != res.textures[key].Bounds().Dx() {
 			panic("texture has different sizes")
 		}
-
-		if err != nil {
-			return nil, err
-		}
-
 	}
 
 	res.textures[lab.CellExit] = res.textures[lab.CellEarth]
