@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -79,7 +80,10 @@ func makeCellMapImage() *image.CellMap {
 
 	var err error
 	w := makeWorld()
-	_cellMapImage, err = image.NewCellMapImage(&w.Cells)
+	fsImageRepository := image.FSImageRepository{
+		BaseDir: imgPath,
+	}
+	_cellMapImage, err = image.NewCellMapImage(&w.Cells, &fsImageRepository)
 	if err != nil {
 		panic(err)
 	}
@@ -92,10 +96,6 @@ func makeWorld() *lab.World {
 		return _world
 	}
 
-	worldBytes, err := os.ReadFile("./examples/lab-map1.md")
-	if err != nil {
-		panic(err.Error())
-	}
 	bb := md.WorldBuilder{
 		Cf: lab.CellWorldBuilder{
 			CellFac: lab.DefaultCellFactory,
@@ -109,16 +109,37 @@ func makeWorld() *lab.World {
 	return _world
 }
 
+var mapPath string
+var imgPath string
+var worldBytes []byte
+
+func init() {
+	const (
+		defaultPathToMap = "./examples/lab-map1.md"
+		usage            = "path to MD file for maze map"
+
+		defaultImgPath = "/var/labyrinth/image"
+		usageImg       = "path to directory with images"
+	)
+	flag.StringVar(&mapPath, "map", defaultPathToMap, usage)
+	flag.StringVar(&mapPath, "m", defaultPathToMap, usage+" (shorthand)")
+	flag.StringVar(&imgPath, "image", defaultImgPath, usageImg)
+	flag.StringVar(&imgPath, "i", defaultImgPath, usageImg+" (shorthand)")
+}
+
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
+	flag.Parse()
+	var err error
+	worldBytes, err = os.ReadFile(mapPath)
+	if err != nil {
+		panic(err.Error())
+	}
+
 	opts := []bot.Option{
 		bot.WithDefaultHandler(handler),
-		// bot.WithMessageTextHandler("/play", bot.MatchTypeExact, handlerInlineKeyboard),
-		// bot.WithMessageTextHandler("/new", bot.MatchTypeExact, handlerNew),
-		// bot.WithMessageTextHandler("/join", bot.MatchTypePrefix, handlerJoin),
-		// bot.WithMessageTextHandler("/info", bot.MatchTypeExact, handlerInfo),
 	}
 
 	botToken := os.Getenv("TELEGRAM_BOT_TOKEN")

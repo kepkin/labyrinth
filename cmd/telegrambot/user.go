@@ -17,7 +17,6 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2/expirable"
 	lab "github.com/kepkin/labyrinth"
 	"github.com/kepkin/labyrinth/image"
-	labtv "github.com/kepkin/labyrinth/tview"
 )
 
 type UserStateRepository struct {
@@ -260,10 +259,6 @@ func (s *WaitForGameStartState) Handle(ctx context.Context, b *bot.Bot, update *
 
 		w := makeWorld()
 		sess.GameSession.World = w
-
-		go func() {
-			labtv.RunDebug(w, &sess.GameSession)
-		}()
 
 		pl := sess.GameSession.GetCurrentPlayer()
 		nextTgUser := TgUser{}
